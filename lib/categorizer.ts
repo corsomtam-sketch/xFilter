@@ -1,8 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import prisma from '@/lib/db'
 import { buildImageContext } from '@/lib/image-context'
-import { resolveAnthropicClient } from '@/lib/claude-cli-auth'
-import { getAnthropicModel } from '@/lib/vision-analyzer'
+import { resolveAnthropicClient, getCliAvailability, claudePrompt, modelNameToCliAlias } from '@/lib/claude-cli-auth'
+import { getAnthropicModel } from '@/lib/settings'
 
 const BATCH_SIZE = 20
 
@@ -231,15 +231,37 @@ function parseCategorizationResponse(text: string, validSlugs: Set<string>): Cat
 
 export async function categorizeBatch(
   bookmarks: BookmarkForCategorization[],
-  client: Anthropic,
+  client: Anthropic | null,
   categoryDescriptions: Record<string, string> = {},
   allSlugs: string[] = DEFAULT_SLUGS,
 ): Promise<CategorizationResult[]> {
   if (bookmarks.length === 0) return []
 
-  const model = await getAnthropicModel()
   const prompt = buildCategorizationPrompt(bookmarks, categoryDescriptions, allSlugs)
 
+  // Prefer CLI over SDK (avoids OAuth token extraction, uses CLI directly)
+  if (await getCliAvailability()) {
+    const modelSetting = await getAnthropicModel()
+    const cliModel = modelNameToCliAlias(modelSetting)
+
+    const result = await claudePrompt(prompt, { model: cliModel, timeoutMs: 60_000 })
+    if (result.success && result.data) {
+      try {
+        return parseCategorizationResponse(result.data, new Set(allSlugs))
+      } catch (parseErr) {
+        console.warn('[categorize] CLI response parse failed, falling back to SDK:', parseErr)
+      }
+    } else {
+      console.warn('[categorize] CLI failed, falling back to SDK:', result.error)
+    }
+  }
+
+  // Fallback to SDK (requires API key)
+  if (!client) {
+    throw new Error('Claude CLI not available and no API key configured.')
+  }
+
+  const model = await getAnthropicModel()
   const message = await client.messages.create({
     model,
     max_tokens: 2048,

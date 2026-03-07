@@ -1,18 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk'
 import prisma from '@/lib/db'
 import { buildImageContext } from '@/lib/image-context'
+import { getCliAvailability, claudePrompt, modelNameToCliAlias } from '@/lib/claude-cli-auth'
+import { getAnthropicModel } from '@/lib/settings'
 
-// Module-level model cache — avoids hundreds of DB roundtrips per pipeline run
-let _cachedModel: string | null = null
-let _modelCacheExpiry = 0
-
-export async function getAnthropicModel(): Promise<string> {
-  if (_cachedModel && Date.now() < _modelCacheExpiry) return _cachedModel
-  const setting = await prisma.setting.findUnique({ where: { key: 'anthropicModel' } })
-  _cachedModel = setting?.value ?? 'claude-opus-4-6'
-  _modelCacheExpiry = Date.now() + 5 * 60 * 1000
-  return _cachedModel
-}
+export { getAnthropicModel } from '@/lib/settings'
 
 type AllowedMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
 
@@ -346,13 +338,49 @@ ${JSON.stringify(items, null, 1)}`
 
 export async function enrichBatchSemanticTags(
   bookmarks: BookmarkForEnrichment[],
-  client: Anthropic,
+  client: Anthropic | null,
 ): Promise<EnrichmentResult[]> {
   if (bookmarks.length === 0) return []
 
-  const model = await getAnthropicModel()
   const prompt = buildEnrichmentPrompt(bookmarks)
 
+  // Helper to parse enrichment response
+  const parseResponse = (text: string): EnrichmentResult[] => {
+    const match = text.match(/\[[\s\S]*\]/)
+    if (!match) return []
+    const parsed: unknown = JSON.parse(match[0])
+    if (!Array.isArray(parsed)) return []
+    return (parsed as Record<string, unknown>[]).map((item): EnrichmentResult => ({
+      id: String(item.id ?? ''),
+      tags: Array.isArray(item.tags) ? (item.tags as unknown[]).map(String).filter(Boolean) : [],
+      sentiment: String(item.sentiment ?? 'neutral'),
+      people: Array.isArray(item.people) ? (item.people as unknown[]).map(String).filter(Boolean) : [],
+      companies: Array.isArray(item.companies) ? (item.companies as unknown[]).map(String).filter(Boolean) : [],
+    })).filter((r) => r.id)
+  }
+
+  // Prefer CLI over SDK
+  if (await getCliAvailability()) {
+    const modelSetting = await getAnthropicModel()
+    const cliModel = modelNameToCliAlias(modelSetting)
+
+    const result = await claudePrompt(prompt, { model: cliModel, timeoutMs: 90_000 })
+    if (result.success && result.data) {
+      try {
+        return parseResponse(result.data)
+      } catch {
+        console.warn('[enrich] CLI response parse failed, falling back to SDK')
+      }
+    }
+  }
+
+  // Fallback to SDK
+  if (!client) {
+    console.warn('[enrich] CLI not available and no API client')
+    return []
+  }
+
+  const model = await getAnthropicModel()
   const ENRICH_RETRY_DELAYS = [2000, 5000]
 
   for (let attempt = 0; attempt <= ENRICH_RETRY_DELAYS.length; attempt++) {
@@ -363,26 +391,13 @@ export async function enrichBatchSemanticTags(
         messages: [{ role: 'user', content: prompt }],
       })
       const text = msg.content.find((b) => b.type === 'text')?.text ?? ''
-      const match = text.match(/\[[\s\S]*\]/)
-      if (!match) {
-        console.warn(`[enrich] no JSON array in response (attempt ${attempt + 1}), text length: ${text.length}`)
-        continue
-      }
-
-      const parsed: unknown = JSON.parse(match[0])
-      if (!Array.isArray(parsed)) continue
-
-      return (parsed as Record<string, unknown>[]).map((item): EnrichmentResult => ({
-        id: String(item.id ?? ''),
-        tags: Array.isArray(item.tags) ? (item.tags as unknown[]).map(String).filter(Boolean) : [],
-        sentiment: String(item.sentiment ?? 'neutral'),
-        people: Array.isArray(item.people) ? (item.people as unknown[]).map(String).filter(Boolean) : [],
-        companies: Array.isArray(item.companies) ? (item.companies as unknown[]).map(String).filter(Boolean) : [],
-      })).filter((r) => r.id)
+      const results = parseResponse(text)
+      if (results.length > 0) return results
+      console.warn(`[enrich] no JSON array in response (attempt ${attempt + 1})`)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.warn(`[enrich] batch failed (attempt ${attempt + 1}): ${msg.slice(0, 120)}`)
-      const isClientError = msg.includes('400') || msg.includes('401') || msg.includes('403') || msg.includes('422')
+      const errMsg = err instanceof Error ? err.message : String(err)
+      console.warn(`[enrich] batch failed (attempt ${attempt + 1}): ${errMsg.slice(0, 120)}`)
+      const isClientError = errMsg.includes('400') || errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('422')
       if (isClientError || attempt >= ENRICH_RETRY_DELAYS.length) break
       await new Promise((r) => setTimeout(r, ENRICH_RETRY_DELAYS[attempt]))
     }

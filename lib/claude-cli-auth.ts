@@ -1,8 +1,11 @@
-import { execSync } from 'child_process'
+import { execSync, spawnSync } from 'child_process'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
 import Anthropic from '@anthropic-ai/sdk'
+
+// Re-export CLI utilities for text-based tasks
+export { claudePrompt, getCliAvailability, modelNameToCliAlias } from './claude-cli'
 
 interface ClaudeOAuthCredentials {
   accessToken: string

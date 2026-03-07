@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import prisma from '@/lib/db'
 import { ftsSearch } from '@/lib/fts'
 import { resolveAnthropicClient } from '@/lib/claude-cli-auth'
+import { getAnthropicModel } from '@/lib/settings'
 
 // ─── Cache ────────────────────────────────────────────────────────────────────
 interface CacheEntry { results: unknown; expiresAt: number }
@@ -23,8 +24,6 @@ function setCache(key: string, results: unknown): void {
 // ─── Module-level caches (avoid DB roundtrips on every search) ────────────────
 let _apiKey: string | null = null
 let _apiKeyExpiry = 0
-let _model: string | null = null
-let _modelExpiry = 0
 let _categoriesCache: { slug: string; name: string; description: string | null }[] | null = null
 let _categoriesCacheExpiry = 0
 
@@ -35,14 +34,6 @@ async function getDbApiKey(): Promise<string> {
   _apiKey = fromDb
   _apiKeyExpiry = Date.now() + 60_000
   return _apiKey
-}
-
-async function getAnthropicModel(): Promise<string> {
-  if (_model && Date.now() < _modelExpiry) return _model
-  const setting = await prisma.setting.findUnique({ where: { key: 'anthropicModel' } })
-  _model = setting?.value ?? 'claude-opus-4-6'
-  _modelExpiry = Date.now() + 5 * 60 * 1000
-  return _model
 }
 async function getAllCategories() {
   if (_categoriesCache && Date.now() < _categoriesCacheExpiry) return _categoriesCache
