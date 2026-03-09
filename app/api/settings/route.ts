@@ -23,7 +23,7 @@ export async function GET(): Promise<NextResponse> {
     return NextResponse.json({
       anthropicApiKey: maskKey(anthropic?.value ?? null),
       hasAnthropicKey: anthropic !== null,
-      anthropicModel: anthropicModel?.value ?? 'claude-opus-4-6',
+      anthropicModel: anthropicModel?.value ?? 'claude-haiku-4-5-20251001',
     })
   } catch (err) {
     console.error('Settings GET error:', err)
