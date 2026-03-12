@@ -11,7 +11,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'Siftly',
+  title: 'xFilter',
   description: 'Your Twitter bookmarks, organized and searchable.',
 }
 
