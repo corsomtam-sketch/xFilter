@@ -276,7 +276,7 @@ export default function Nav() {
 
           {collectionsOpen && (
             <>
-              <div className="flex flex-col gap-px overflow-y-auto flex-1 min-h-0 max-h-64">
+              <div className="flex flex-col gap-px overflow-y-auto flex-1 min-h-0">
                 {visibleCats.map((cat) => {
                   const catActive = pathname === `/categories/${cat.slug}`
                   return (
@@ -320,7 +320,6 @@ export default function Nav() {
         </div>
       )}
 
-      <SupportFooter />
     </aside>
   )
 }
