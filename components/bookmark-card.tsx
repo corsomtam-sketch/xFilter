@@ -19,6 +19,18 @@ function stripTcoUrls(text: string): string {
   return text.replace(TCO_REGEX, '').trim()
 }
 
+// ── URL sanitization ───────────────────────────────────────────────────────────
+
+/** Ensure hrefs from external OG data only use safe protocols */
+function safeHref(href: string): string {
+  try {
+    const { protocol } = new URL(href)
+    return protocol === 'https:' || protocol === 'http:' ? href : '#'
+  } catch {
+    return '#'
+  }
+}
+
 // ── Link preview ───────────────────────────────────────────────────────────────
 
 interface LinkPreviewData {
@@ -83,7 +95,7 @@ function LinkPreview({ url, tweetUrl, tweetId, prominent = false }: { url: strin
   // X article pages return useless OG data — show a styled "View article" card instead
   const isGenericXArticle = (data.domain === 'x.com' || data.domain === 'twitter.com') && !data.image && !data.description
 
-  const href = data.url || url
+  const href = safeHref(data.url || url)
 
   // X article / generic X link with no useful OG data — show a clean "View on X" card
   if (isGenericXArticle) {

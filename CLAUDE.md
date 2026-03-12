@@ -1,6 +1,19 @@
-# Siftly
+# xFilter (forked from Siftly)
 
 Self-hosted Twitter/X bookmark manager with AI-powered categorization, search, and visualization.
+
+## Claude Code Instructions
+
+### Model
+- Always use **Sonnet** (`claude-sonnet-4-6`). Do not switch models.
+
+### Commit & Push Reminders
+- Prompt the user to commit and push to GitHub after every meaningful change.
+
+### Conversation Compaction
+- Prompt the user to `/compact` the conversation every 20 minutes of active work.
+
+---
 
 ## Quick Setup
 
