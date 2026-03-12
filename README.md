@@ -1,3 +1,51 @@
+# xFilter — Quick Reference
+
+## Starting the app
+
+**Option A — One command (recommended)**
+```bash
+cd /Users/danhurt/Projects/xFilter
+./start.sh
+```
+Launches the web app + Telegram bot together. Browser opens automatically at http://localhost:3000.
+
+**Option B — Two terminals manually**
+
+Terminal 1 — xFilter web app:
+```bash
+cd /Users/danhurt/Projects/xFilter
+npx next dev
+```
+
+Terminal 2 — Telegram bot:
+```bash
+cd /Users/danhurt/Projects/xFilter
+python3 telegram_bot.py
+```
+
+## First-time setup
+```bash
+npm install
+pip3 install -r bot_requirements.txt
+npx prisma generate && npx prisma db push
+./start.sh
+```
+
+## Configuration — `.env.local`
+| Variable | Required | Description |
+|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | For Telegram bot | Token from @BotFather |
+| `XFILTER_SHARE_TOKEN` | Optional | Protects the share API |
+| `ANTHROPIC_API_KEY` | Optional | Not needed if using Claude Code CLI |
+
+## Telegram bot
+Send any URL to your bot to save it with an AI summary. Add a note if you like:
+```
+https://example.com useful for the project
+```
+
+---
+
 <div align="center">
   <img src="public/logo.svg" alt="Siftly" width="80" height="80" />
 

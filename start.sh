@@ -72,7 +72,33 @@ if [[ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]]; then
   trap "kill $TUNNEL_PID 2>/dev/null" EXIT
 fi
 
-# ── 6. Open browser and start ─────────────────────────────────────────────────
+# ── 6. Start Telegram bot if token is configured ─────────────────────────────
+TELEGRAM_TOKEN=""
+for env_file in ".env.local" ".env"; do
+  if [ -f "$env_file" ] && grep -q "^TELEGRAM_BOT_TOKEN=" "$env_file" 2>/dev/null; then
+    val=$(grep "^TELEGRAM_BOT_TOKEN=" "$env_file" | cut -d= -f2-)
+    if [[ -n "$val" && "$val" != "PASTE_YOUR_TOKEN_HERE" ]]; then
+      TELEGRAM_TOKEN="$val"
+      break
+    fi
+  fi
+done
+
+if [[ -n "$TELEGRAM_TOKEN" ]]; then
+  if command -v python3 &>/dev/null && [ -f "telegram_bot.py" ]; then
+    echo -e "  ${GREEN}✓${NC} Starting Telegram bot in background"
+    python3 telegram_bot.py &
+    BOT_PID=$!
+    trap "kill $BOT_PID 2>/dev/null; kill ${TUNNEL_PID:-} 2>/dev/null" EXIT
+  else
+    echo -e "  ${YELLOW}i${NC} Telegram bot skipped — python3 not found or telegram_bot.py missing"
+  fi
+else
+  echo -e "  ${YELLOW}i${NC} Telegram bot skipped — set TELEGRAM_BOT_TOKEN in .env.local to enable"
+fi
+echo ""
+
+# ── 7. Open browser and start ─────────────────────────────────────────────────
 echo "  Starting on http://localhost:$PORT"
 echo "  Press Ctrl+C to stop"
 echo ""
