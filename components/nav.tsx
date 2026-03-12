@@ -183,7 +183,7 @@ export default function Nav() {
       <div className="flex items-center justify-center gap-3 px-4 py-3.5 border-b border-zinc-800/50">
         <img src="/logo.svg" alt="Siftly" className="w-9 h-9 shrink-0" />
         <span className="text-zinc-100 font-bold text-[17px] tracking-tight">
-          Sift<span style={{ color: '#F5A623' }}>ly</span>
+          x<span style={{ color: '#F5A623' }}>Filter</span>
         </span>
         <div className="shrink-0 flex items-center">
           <ThemeToggle />
